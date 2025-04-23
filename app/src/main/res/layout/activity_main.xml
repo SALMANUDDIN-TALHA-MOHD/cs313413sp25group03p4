@@ -19,9 +19,9 @@
     </RelativeLayout>
 
     <!--
-         TODO Why can't I define textSize and textStyle
-    	 in the timer container and have it inherited
-    	 by the TextViews?
+        TODO Why can't I define textSize and textStyle
+        in the timer container and have it inherited
+        by the TextViews?
     -->
 
     <RelativeLayout
@@ -52,7 +52,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:onClick="onButton"
-                android:text="@string/startStop" />
+                android:text="@string/startStop"
+                android:backgroundTint="#64B5F6" />
     </RelativeLayout>
     <RelativeLayout
             android:layout_width="wrap_content"
@@ -70,6 +71,8 @@
                 android:hint="Input Time"
                 android:textAlignment="center"
                 android:visibility="visible"
+                android:backgroundTint="#B39DDB"
+                android:textColorHint="#9575CD"
         />
     </RelativeLayout>
     <RelativeLayout
@@ -90,7 +93,6 @@
             android:layout_centerHorizontal="true"
             android:layout_below="@+id/textbox"
             android:visibility="visible"
+            android:background="#E8F5E9"
     />
-
-
 </RelativeLayout>
