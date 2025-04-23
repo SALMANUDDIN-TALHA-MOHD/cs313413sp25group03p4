@@ -1,11 +1,22 @@
 package edu.luc.etl.cs313.android.simplestopwatch.android;
 
 import android.app.Activity;
+import android.app.AlarmManager;
+import android.content.pm.ActivityInfo;
+import android.media.AudioAttributes;
+import android.media.MediaPlayer;
+import android.media.Ringtone;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.Menu;
+import android.view.OrientationEventListener;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.TextView;
+import android.content.Context;
 
+import java.io.IOException;
 import java.util.Locale;
 
 import edu.luc.etl.cs313.android.simplestopwatch.R;
@@ -14,6 +25,7 @@ import edu.luc.etl.cs313.android.simplestopwatch.common.StopwatchModelListener;
 import edu.luc.etl.cs313.android.simplestopwatch.model.ConcreteStopwatchModelFacade;
 import edu.luc.etl.cs313.android.simplestopwatch.model.StopwatchModelFacade;
 
+
 /**
  * A thin adapter component for the stopwatch.
  *
@@ -21,17 +33,27 @@ import edu.luc.etl.cs313.android.simplestopwatch.model.StopwatchModelFacade;
  */
 public class StopwatchAdapter extends Activity implements StopwatchModelListener {
 
-    private static String TAG = "stopwatch-android-activity";
+    private static String TAG = "Stopwatch-android-activity";
 
     /**
      * The state-based dynamic model.
      */
     private StopwatchModelFacade model;
 
+    /**
+     * Setter method for the state-based dynamic model.
+     *
+     * @param model The model to set.
+     */
     protected void setModel(final StopwatchModelFacade model) {
         this.model = model;
     }
 
+    /**
+     * Implementation of the method called when an Activity is started.
+     *
+     * @param savedInstanceState The instance containing data from before the Activity was last terminated/ended.
+     */
     @Override
     protected void onCreate(final Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -41,14 +63,41 @@ public class StopwatchAdapter extends Activity implements StopwatchModelListener
         this.setModel(new ConcreteStopwatchModelFacade());
         // inject dependency on this into model to register for UI updates
         model.setModelListener(this);
+
+        OrientationEventListener orientationEventListener = new OrientationEventListener(this) {
+            @Override
+            public void onOrientationChanged(int orientation) {
+                int epsilon = 10;
+                int leftLandscape = 90;
+                int rightLandscape = 270;
+
+                if(epsilonCheck(orientation, leftLandscape, epsilon) || epsilonCheck(orientation, rightLandscape, epsilon)) {
+                    setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR);
+                }
+            }
+            private boolean epsilonCheck(int orientation, int landscapeMode, int epsilon) {
+                return orientation > landscapeMode - epsilon && orientation < landscapeMode + epsilon;
+            }
+        };
+        orientationEventListener.enable();
     }
 
+    public void changeOrientation(int orientation) {
+        setRequestedOrientation(orientation);
+    }
+
+    /**
+     *
+     */
     @Override
     public boolean onCreateOptionsMenu(final Menu menu) {
         getMenuInflater().inflate(R.menu.activity_main, menu);
         return true;
     }
 
+    /**
+     *
+     */
     @Override
     protected void onStart() {
         super.onStart();
@@ -59,37 +108,87 @@ public class StopwatchAdapter extends Activity implements StopwatchModelListener
 
     /**
      * Updates the seconds and minutes in the UI.
-     * @param time
+     *
+     * @param time The time to update to the UI.
      */
     public void onTimeUpdate(final int time) {
         // UI adapter responsibility to schedule incoming events on UI thread
         runOnUiThread(() -> {
             final TextView tvS = findViewById(R.id.seconds);
-            final TextView tvM = findViewById(R.id.minutes);
+            // final TextView tvM = findViewById(R.id.minutes);
             final var locale = Locale.getDefault();
-            tvS.setText(String.format(locale,"%02d", time % Constants.SEC_PER_MIN));
-            tvM.setText(String.format(locale,"%02d", time / Constants.SEC_PER_MIN));
+            tvS.setText(String.format(locale,"%02d", time));
+            // tvM.setText(String.format(locale,"%02d", time / Constants.SEC_PER_MIN));
         });
     }
 
     /**
-     * Updates the state name in the UI.
-     * @param stateId
+     * Updates the state name in the UI and hides the input field when not Stopped.
+     *
+     * @param stateId The state name to update in the UI.
      */
     public void onStateUpdate(final int stateId) {
         // UI adapter responsibility to schedule incoming events on UI thread
         runOnUiThread(() -> {
             final TextView stateName = findViewById(R.id.stateName);
             stateName.setText(getString(stateId));
+
+            final EditText userTime = findViewById(R.id.userTime);
+            final TextView text = findViewById(R.id.text);
+
+            if (stateId == R.string.STOPPED) {
+                userTime.setVisibility(View.VISIBLE);
+                text.setVisibility(View.VISIBLE);
+            }
+            else {
+                userTime.setVisibility(View.GONE);
+                text.setVisibility(View.GONE);
+            }
         });
     }
 
-    // forward event listener methods to the model
-    public void onStartStop(final View view) {
-        model.onStartStop();
+    /**
+     * Prepares media player to play the alarm sound.
+     * To change the alarm being played, change RingtoneManager.
+     *
+     * @param notification_sound The sound to use for the notification (from RingtoneManager).
+     */
+    public void soundAlarm(final int notification_sound) {
+        final Uri sound = RingtoneManager.getDefaultUri(notification_sound);
+        final MediaPlayer mediaplayer = new MediaPlayer();
+        final Context context = getApplicationContext();
+        try {
+            mediaplayer.setDataSource(context, sound);
+            mediaplayer.prepare();
+            mediaplayer.setOnCompletionListener(MediaPlayer::release);
+            mediaplayer.start();
+        } catch(final Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    public void onLapReset(final View view)  {
-        model.onLapReset();
+    /**
+     * Forwards the event listener methods to the model.
+     *
+     * @param view The view of the state machine.
+     */
+    public void onButton(final View view) {
+        model.onButton();
+    }
+
+    /**
+     * Using EditText object, obtains the user number for the UI.
+     * Still ensures that this new number is less than Constants.SEC_MAX.
+     * */
+    @Override
+    public int getUserRuntime() {
+        String stringNum = ((EditText)findViewById(R.id.userTime)).getText().toString();
+        if (!stringNum.isEmpty()) {
+            int intNum = Integer.parseInt(stringNum);
+            if (intNum > Constants.SEC_MAX) { intNum = Constants.SEC_MAX; }
+            return intNum;
+        } else {
+            return Constants.UI_DEFAULT;
+        }
     }
 }
